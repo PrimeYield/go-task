@@ -35,11 +35,23 @@ func projectHandler(
 	r *http.Request,
 	repo project.Repository,
 ) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	switch r.Method {
+	case http.MethodPost:
+		createProject(w, r, repo)
 
+	case http.MethodGet:
+		listProjects(w, r, repo)
+
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func createProject(
+	w http.ResponseWriter,
+	r *http.Request,
+	repo project.Repository,
+) {
 	var req project.CreateProjectRequest
 
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -55,4 +67,17 @@ func projectHandler(
 	w.WriteHeader(http.StatusCreated)
 
 	json.NewEncoder(w).Encode(createdProject)
+}
+
+func listProjects(
+	w http.ResponseWriter,
+	r *http.Request,
+	repo project.Repository,
+) {
+	projects := repo.List()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	json.NewEncoder(w).Encode(projects)
 }

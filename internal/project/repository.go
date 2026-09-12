@@ -4,6 +4,7 @@ import "sync"
 
 type Repository interface {
 	Create(name string) Project
+	List() []Project
 }
 
 type MemoryRepository struct {
@@ -34,4 +35,17 @@ func (r *MemoryRepository) Create(name string) Project {
 	r.nextID++
 
 	return project
+}
+
+func (r *MemoryRepository) List() []Project {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	projects := make([]Project, 0, len(r.projects))
+
+	for _, project := range r.projects {
+		projects = append(projects, project)
+	}
+
+	return projects
 }
