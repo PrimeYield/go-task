@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"go-task/internal/project"
 	"net/http"
+	"strconv"
+	"strings"
 )
 
 func main() {
@@ -14,6 +16,10 @@ func main() {
 
 	http.HandleFunc("/projects", func(w http.ResponseWriter, r *http.Request) {
 		projectHandler(w, r, repo)
+	})
+
+	http.HandleFunc("/projects/{id}", func(w http.ResponseWriter, r *http.Request) {
+		projectIDHandler(w, r, repo)
 	})
 
 	fmt.Println("GoTask API starting on :8080")
@@ -56,8 +62,21 @@ func createProject(
 
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		fmt.Println("decode error:", err)
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+
+		json.NewEncoder(w).Encode(project.ErrorResponse{
+			Error: "invalid request body",
+		})
+		return
+	}
+
+	if strings.TrimSpace(req.Name) == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(project.ErrorResponse{
+			Error: `request "Name" cannot be empty`,
+		})
 		return
 	}
 
@@ -80,4 +99,135 @@ func listProjects(
 	w.WriteHeader(http.StatusOK)
 
 	json.NewEncoder(w).Encode(projects)
+}
+
+func searchProject(
+	w http.ResponseWriter,
+	r *http.Request,
+	repo project.Repository,
+) {
+	idText := r.PathValue("id")
+
+	numID, err := strconv.Atoi(idText)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(project.ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+	projectResponse, exist := repo.GetByID(int64(numID))
+	if !exist {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(project.ErrorResponse{
+			Error: `project is not found.`,
+		})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(projectResponse)
+}
+
+func uploadProject(
+	w http.ResponseWriter,
+	r *http.Request,
+	repo project.Repository,
+) {
+
+	idText := r.PathValue("id")
+	// var numID int64
+	ID, err := strconv.Atoi(idText)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(project.ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+	var req project.UploadProjectRequest
+
+	err = json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+
+		json.NewEncoder(w).Encode(project.ErrorResponse{
+			Error: "invalid request body",
+		})
+		return
+	}
+
+	if strings.TrimSpace(req.Name) == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(project.ErrorResponse{
+			Error: `request "Name" cannot be empty`,
+		})
+		return
+	}
+
+	numID := int64(ID)
+	var uploadProject project.Project
+	uploadProject, exist := repo.Update(numID, req.Name)
+	if !exist {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(project.ErrorResponse{
+			Error: `project is not found.`,
+		})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(uploadProject)
+}
+
+func deleteProject(
+	w http.ResponseWriter,
+	r *http.Request,
+	repo project.Repository,
+) {
+	idText := r.PathValue("id")
+	numID, err := strconv.Atoi(idText)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(project.ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+	exist := repo.Delete(int64(numID))
+	if !exist {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(project.ErrorResponse{
+			Error: `project is not found.`,
+		})
+		return
+	}
+	// w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func projectIDHandler(
+	w http.ResponseWriter,
+	r *http.Request,
+	repo project.Repository,
+) {
+	switch r.Method {
+	case http.MethodGet:
+		searchProject(w, r, repo)
+
+	case http.MethodPut:
+		uploadProject(w, r, repo)
+	case http.MethodDelete:
+		deleteProject(w, r, repo)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }
