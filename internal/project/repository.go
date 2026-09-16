@@ -1,18 +1,31 @@
 package project
 
 import (
+	"go-task/internal/task"
 	"sort"
 	"sync"
 	"time"
 )
 
 type Repository interface {
+	// Project
 	Create(name string) Project
 	List() []Project
 	// FindByID(ID int64) bool
 	GetByID(ID int64) (Project, bool)
-	Update(ID int64, Name string) (Project, bool)
-	Delete(ID int64) bool
+	Update(ID int64, reName string) (Project, bool)
+	Delete(ID int64) error
+
+	// Task
+	CreateTask(title string, projectID int64) (task.Task, bool)
+	GetProjectAllTasks(projectID int64) ([]task.Task, bool)
+	GetProjectSingleTask(projectID, taskID int64) (task.Task, bool)
+	UpdateTask(projectID, taskID int64, title string, status string) (task.Task, bool)
+	DeleteTask(projectID, taskID int64) bool
+
+	// internal helpers
+	// findProjectLocked(projectID int64) (Project, bool)
+	// findTaskIndexLocked(Project Project, taskID int64) (task.Task, int, bool)
 }
 
 type MemoryRepository struct {
@@ -35,9 +48,12 @@ func (r *MemoryRepository) Create(name string) Project {
 	defer r.mu.Unlock()
 
 	project := Project{
-		ID:       r.nextID,
-		Name:     name,
-		CreateAt: time.Now(),
+		ID:        r.nextID,
+		Name:      name,
+		CreatedAt: time.Now(),
+		TaskCount: 0,
+		tasks:     []task.Task{},
+		taskID:    1,
 	}
 
 	r.projects[project.ID] = project
@@ -90,7 +106,7 @@ func (r *MemoryRepository) GetByID(ID int64) (Project, bool) {
 	return project, exist
 }
 
-func (r *MemoryRepository) Update(ID int64, Name string) (Project, bool) {
+func (r *MemoryRepository) Update(ID int64, reName string) (Project, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -98,19 +114,22 @@ func (r *MemoryRepository) Update(ID int64, Name string) (Project, bool) {
 	if !exist {
 		return project, exist
 	}
-	project.Name = Name
+	project.Name = reName
 	r.projects[ID] = project
 	return project, true
 }
 
-func (r *MemoryRepository) Delete(ID int64) bool {
+func (r *MemoryRepository) Delete(ID int64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	_, exist := r.projects[ID]
 	if !exist {
-		return false
+		return ErrProjectNotFound
+	}
+	if len(r.projects[ID].tasks) > 0 {
+		return ErrProjectHasTasks
 	}
 	delete(r.projects, ID)
-	return true
+	return nil
 }

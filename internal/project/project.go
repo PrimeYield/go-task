@@ -1,11 +1,17 @@
 package project
 
-import "time"
+import (
+	"go-task/internal/task"
+	"time"
+)
 
 type Project struct {
-	ID       int64     `json:"id"`
-	Name     string    `json:"name"`
-	CreateAt time.Time `json:"create_at"`
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+	TaskCount int64     `json:"task_count"`
+	tasks     []task.Task
+	taskID    int64
 }
 
 type CreateProjectRequest struct {
