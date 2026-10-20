@@ -1,85 +1,48 @@
 package main
 
 import (
-	"fmt"
-	"go-task/cmd/handler"
-	"go-task/internal/database"
-	"go-task/internal/response/project"
 	"log"
 	"net/http"
+
+	"go-task/cmd/handler"
+	"go-task/internal/database"
+	"go-task/internal/service"
 )
 
-// POST /projects/{projectID}/tasks
+// 在編譯時確認兩個實作符合對應介面。
+var _ service.ProjectStore = (*database.ProjectDB)(nil)
+var _ handler.ProjectService = (*service.ProjectService)(nil)
 
 func main() {
+	// 1. 開啟資料庫，Open 內部也會執行 Ping。
 	db, err := database.Open()
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
-	respPrject := project.NewProjectResponse()
-	respTask := task.NewTaskResponse()
 
+	// 2. 將資料庫交給 Store。
+	store := database.NewProjectDB(db)
+
+	// 3. 將 Store 交給 Service。
+	svc := service.NewProjectService(store)
+
+	// 4. 註冊路由。
 	mux := http.NewServeMux()
 
-	{
-		mux.HandleFunc("GET /health", healthHandler)
-	}
-	
-	{
-		mux.HandleFunc("POST /projects", func(w http.ResponseWriter, r *http.Request) {
-			handler.CreateProjectHandler(w, r, respPrject)
-		})
-		mux.HandleFunc("GET /projects", func(w http.ResponseWriter, r *http.Request) {
-			handler.ListProjectsHandler(w, r, respPrject)
-		})
-		mux.HandleFunc("GET /projects/{id}", func(w http.ResponseWriter, r *http.Request) {
-			handler.SearchProjectHandler(w, r, respPrject)
-		})
-		mux.HandleFunc("PUT /projects/{id}", func(w http.ResponseWriter, r *http.Request) {
-			handler.UpdateProjectHandler(w, r, respPrject)
-		})
-		mux.HandleFunc("DELETE /projects/{id}", func(w http.ResponseWriter, r *http.Request) {
-			handler.DeleteProjectHandler(w, r, respPrject)
-		})
-	}
-	{
-		mux.HandleFunc("POST /projects/{id}/tasks", func(w http.ResponseWriter, r *http.Request) {
-			handler.CreateTaskHandler(w, r, respPrject)
-		})
-		mux.HandleFunc("GET /projects/{id}/tasks", func(w http.ResponseWriter, r *http.Request) {
-			handler.GetProjectAllTasksHandler(w, r, respPrject)
-		})
-		mux.HandleFunc("GET /projects/{id}/tasks/{task_id}", func(w http.ResponseWriter, r *http.Request) {
-			handler.GetProjectSingleTaskHandler(w, r, respPrject)
-		})
-		mux.HandleFunc("PUT /projects/{id}/tasks/{task_id}", func(w http.ResponseWriter, r *http.Request) {
-			handler.UpdateTaskHandler(w, r, respPrject)
-		})
-		mux.HandleFunc("DELETE /projects/{id}/tasks/{task_id}", func(w http.ResponseWriter, r *http.Request) {
-			handler.DeleteTaskHandler(w, r, respPrject)
-		})
-	}
+	mux.HandleFunc("GET /health", healthHandler)
 
-	// http.HandleFunc("/health", healthHandler)
+	mux.HandleFunc("POST /projects", func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		handler.CreateProjectHandler(w, r, svc)
+	})
 
-	// http.HandleFunc("/projects", func(w http.ResponseWriter, r *http.Request) {
-	// 	handler.ProjectHandler(w, r, repo)
-	// })
+	log.Println("Starting GoTask API on http://127.0.0.1:18080")
 
-	// http.HandleFunc("/projects/{id}", func(w http.ResponseWriter, r *http.Request) {
-	// 	handler.ProjectIDHandler(w, r, repo)
-	// })
-
-	// http.HandleFunc("/projects/{id}/tasks", func(w http.ResponseWriter, r *http.Request) {
-	// 	handler.ProjectTasksHandler(w, r, repo) //createTask() , updateTask() , deleteTask() , searchTask()
-	// })
-
-	fmt.Println("GoTask API starting on :8080")
-
-	err = http.ListenAndServe(":8080", mux)
-	if err != nil {
-		panic(err)
+	if err := http.ListenAndServe("127.0.0.1:18080", mux); err != nil {
+		log.Printf("HTTP server stopped: %v", err)
 	}
 }
 
