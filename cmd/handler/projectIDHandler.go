@@ -3,7 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"go-task/internal/project"
+	"go-task/internal/response/project"
 	"net/http"
 	"strconv"
 	"strings"

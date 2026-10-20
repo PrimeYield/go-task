@@ -3,53 +3,61 @@ package main
 import (
 	"fmt"
 	"go-task/cmd/handler"
-	"go-task/internal/project"
+	"go-task/internal/database"
+	"go-task/internal/response/project"
+	"log"
 	"net/http"
 )
 
 // POST /projects/{projectID}/tasks
 
 func main() {
-	repo := project.NewMemoryRepository()
+	db, err := database.Open()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+	respPrject := project.NewProjectResponse()
+	respTask := task.NewTaskResponse()
 
 	mux := http.NewServeMux()
 
 	{
 		mux.HandleFunc("GET /health", healthHandler)
 	}
-
+	
 	{
 		mux.HandleFunc("POST /projects", func(w http.ResponseWriter, r *http.Request) {
-			handler.CreateProjectHandler(w, r, repo)
+			handler.CreateProjectHandler(w, r, respPrject)
 		})
 		mux.HandleFunc("GET /projects", func(w http.ResponseWriter, r *http.Request) {
-			handler.ListProjectsHandler(w, r, repo)
+			handler.ListProjectsHandler(w, r, respPrject)
 		})
 		mux.HandleFunc("GET /projects/{id}", func(w http.ResponseWriter, r *http.Request) {
-			handler.SearchProjectHandler(w, r, repo)
+			handler.SearchProjectHandler(w, r, respPrject)
 		})
 		mux.HandleFunc("PUT /projects/{id}", func(w http.ResponseWriter, r *http.Request) {
-			handler.UpdateProjectHandler(w, r, repo)
+			handler.UpdateProjectHandler(w, r, respPrject)
 		})
 		mux.HandleFunc("DELETE /projects/{id}", func(w http.ResponseWriter, r *http.Request) {
-			handler.DeleteProjectHandler(w, r, repo)
+			handler.DeleteProjectHandler(w, r, respPrject)
 		})
 	}
 	{
 		mux.HandleFunc("POST /projects/{id}/tasks", func(w http.ResponseWriter, r *http.Request) {
-			handler.CreateTaskHandler(w, r, repo)
+			handler.CreateTaskHandler(w, r, respPrject)
 		})
 		mux.HandleFunc("GET /projects/{id}/tasks", func(w http.ResponseWriter, r *http.Request) {
-			handler.GetProjectAllTasksHandler(w, r, repo)
+			handler.GetProjectAllTasksHandler(w, r, respPrject)
 		})
 		mux.HandleFunc("GET /projects/{id}/tasks/{task_id}", func(w http.ResponseWriter, r *http.Request) {
-			handler.GetProjectSingleTaskHandler(w, r, repo)
+			handler.GetProjectSingleTaskHandler(w, r, respPrject)
 		})
 		mux.HandleFunc("PUT /projects/{id}/tasks/{task_id}", func(w http.ResponseWriter, r *http.Request) {
-			handler.UpdateTaskHandler(w, r, repo)
+			handler.UpdateTaskHandler(w, r, respPrject)
 		})
 		mux.HandleFunc("DELETE /projects/{id}/tasks/{task_id}", func(w http.ResponseWriter, r *http.Request) {
-			handler.DeleteTaskHandler(w, r, repo)
+			handler.DeleteTaskHandler(w, r, respPrject)
 		})
 	}
 
@@ -69,7 +77,7 @@ func main() {
 
 	fmt.Println("GoTask API starting on :8080")
 
-	err := http.ListenAndServe(":8080", mux)
+	err = http.ListenAndServe(":8080", mux)
 	if err != nil {
 		panic(err)
 	}

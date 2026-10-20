@@ -2,9 +2,10 @@ package handler
 
 import (
 	"encoding/json"
-	"go-task/internal/project"
+	"errors"
+	"go-task/internal/response/project"
+	"log"
 	"net/http"
-	"strings"
 )
 
 // func ProjectHandler(
@@ -27,36 +28,56 @@ import (
 func CreateProjectHandler(
 	w http.ResponseWriter,
 	r *http.Request,
-	repo project.Repository,
+	svc ProjectService,
 ) {
+	// 承接Client JSON
 	var req project.CreateProjectRequest
 
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-
 		json.NewEncoder(w).Encode(project.ErrorResponse{
 			Error: "invalid request body",
 		})
 		return
 	}
 
-	if strings.TrimSpace(req.Name) == "" {
+	// Service Layer
+	createdProject, err := svc.CreateProject(r.Context(), req.Name)
+	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
+
+		if errors.Is(err, project.ErrInvalidProjectName) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(project.ErrorResponse{
+				Error: "project name cannot be empty",
+			})
+			return
+		}
+
+		log.Printf("create project failed: %v", err)
+
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(project.ErrorResponse{
-			Error: `request "Name" cannot be empty`,
+			Error: "internal server error",
 		})
 		return
 	}
 
-	createdProject := repo.Create(req.Name)
+	// Response
+	resp := project.ResponseProject{
+		ID:        createdProject.ID,
+		Name:      createdProject.Name,
+		TaskCount: createdProject.TaskCount,
+		CreatedAt: createdProject.CreatedAt,
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 
-	json.NewEncoder(w).Encode(createdProject)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("encode project response failed: %v", err)
+	}
 }
 
 func ListProjectsHandler(

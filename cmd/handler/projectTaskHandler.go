@@ -2,8 +2,8 @@ package handler
 
 import (
 	"encoding/json"
-	"go-task/internal/project"
-	"go-task/internal/task"
+	"go-task/internal/response/project"
+	"go-task/internal/response/task"
 	"net/http"
 	"strconv"
 	"strings"
@@ -42,6 +42,7 @@ func CreateTaskHandler(
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
+		// fmt.Println("a")
 		json.NewEncoder(w).Encode(project.ErrorResponse{
 			Error: err.Error(),
 		})
@@ -53,7 +54,7 @@ func CreateTaskHandler(
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-
+		// fmt.Println("b")
 		json.NewEncoder(w).Encode(project.ErrorResponse{
 			Error: "invalid request body",
 		})
@@ -62,19 +63,29 @@ func CreateTaskHandler(
 	if strings.TrimSpace(req.Title) == "" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
+		// fmt.Println("c")
 		json.NewEncoder(w).Encode(project.ErrorResponse{
 			Error: `request "Title" cannot be empty`,
 		})
 		return
 	}
 
-	newTask, exist := repo.CreateTask(req.Title, int64(projectID))
-	if !exist {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(project.ErrorResponse{
-			Error: `project is not found.`,
-		})
+	newTask, err := repo.CreateTask(req.Title, int64(projectID))
+	if err != nil {
+		switch err {
+		case project.ErrProjectNotFound:
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(project.ErrorResponse{
+				Error: err.Error(),
+			})
+		case task.ErrTaskReachLimit:
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(project.ErrorResponse{
+				Error: err.Error(),
+			})
+		}
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -180,7 +191,7 @@ func UpdateTaskHandler(
 		return
 	}
 
-	var req task.Task
+	var req task.UploadTaskRequest
 
 	err = json.NewDecoder(r.Body).Decode(&req) // title & status
 	if err != nil {

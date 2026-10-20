@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"go-task/cmd/handler"
-	"go-task/internal/project"
-	"go-task/internal/task"
+	"go-task/internal/response/project"
+	"go-task/internal/response/task"
 	"net/http"
 	"net/http/httptest"
 	"strings"
