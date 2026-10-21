@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"go-task/internal/response/project"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,31 +13,62 @@ import (
 func SearchProjectHandler(
 	w http.ResponseWriter,
 	r *http.Request,
-	repo project.Repository,
+	svc ProjectService,
 ) {
-	idText := r.PathValue("id")
-
-	numID, err := strconv.Atoi(idText)
+	// 1. parse to int
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(project.ErrorResponse{
-			Error: err.Error(),
+			Error: "project ID must be a valid integer",
 		})
 		return
 	}
-	projectResponse, exist := repo.GetByID(int64(numID))
-	if !exist {
+
+	// 2. Service search
+	foundProject, err := svc.GetProject(r.Context(), id)
+	if err != nil {
+		var status int
+		var message string
+
+		switch {
+		case errors.Is(err, project.ErrInvalidProjectID):
+			status = http.StatusBadRequest
+			message = "project ID must be positive"
+
+		case errors.Is(err, project.ErrProjectNotFound):
+			status = http.StatusNotFound
+			message = "project not found"
+
+		default:
+			log.Printf("get project failed: %v", err)
+			status = http.StatusInternalServerError
+			message = "internal server error"
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(status)
 		json.NewEncoder(w).Encode(project.ErrorResponse{
-			Error: `project is not found.`,
+			Error: message,
 		})
 		return
 	}
+
+	// 3. response format
+	resp := project.ResponseProject{
+		ID:        foundProject.ID,
+		Name:      foundProject.Name,
+		TaskCount: foundProject.TaskCount,
+		CreatedAt: foundProject.CreatedAt,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(projectResponse)
+
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("encode project response failed: %v", err)
+	}
 }
 
 func UpdateProjectHandler(

@@ -14,20 +14,20 @@ var _ service.ProjectStore = (*database.ProjectDB)(nil)
 var _ handler.ProjectService = (*service.ProjectService)(nil)
 
 func main() {
-	// 1. 開啟資料庫，Open 內部也會執行 Ping。
+	// 1. open db
 	db, err := database.Open()
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 
-	// 2. 將資料庫交給 Store。
+	// 2. pass to store
 	store := database.NewProjectDB(db)
 
-	// 3. 將 Store 交給 Service。
+	// 3. pass to service
 	svc := service.NewProjectService(store)
 
-	// 4. 註冊路由。
+	// 4. regist router
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", healthHandler)
@@ -37,6 +37,12 @@ func main() {
 		r *http.Request,
 	) {
 		handler.CreateProjectHandler(w, r, svc)
+	})
+	mux.HandleFunc("GET /projects/{id}", func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		handler.SearchProjectHandler(w, r, svc)
 	})
 
 	log.Println("Starting GoTask API on http://127.0.0.1:18080")

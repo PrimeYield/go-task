@@ -10,6 +10,7 @@ import (
 // ProjectStore 定義 Service 需要的資料存取能力。
 type ProjectStore interface {
 	Create(ctx context.Context, name string) (project.Project, error)
+	GetByID(ctx context.Context, id int64) (project.Project, error)
 }
 
 // ProjectService 是真正執行業務規則的物件。
@@ -36,4 +37,15 @@ func (s *ProjectService) CreateProject(
 	}
 
 	return s.store.Create(ctx, name)
+}
+
+func (s *ProjectService) GetProject(
+	ctx context.Context,
+	id int64,
+) (project.Project, error) {
+	if id <= 0 {
+		return project.Project{}, project.ErrInvalidProjectID
+	}
+
+	return s.store.GetByID(ctx, id)
 }
